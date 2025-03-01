@@ -1,6 +1,6 @@
 import os
-from pytube import YouTube
 import re
+import youtube_dl
 
 def is_valid_youtube_url(url):
     """YouTubeのURLが有効かチェックする"""
@@ -13,20 +13,26 @@ def download_video(youtube_url, download_dir, session_id):
         raise ValueError("無効なYouTube URLです")
     
     try:
-        yt = YouTube(youtube_url)
-        
-        # 最高画質の動画をダウンロード
-        video_stream = yt.streams.filter(progressive=True, file_extension='mp4').order_by('resolution').desc().first()
-        
-        if not video_stream:
-            raise ValueError("ダウンロード可能な動画ストリームが見つかりませんでした")
-        
         # セッションIDを使用してファイル名を生成
         file_name = f"{session_id}.mp4"
         file_path = os.path.join(download_dir, file_name)
         
+        # youtube-dlのオプション設定
+        ydl_opts = {
+            'format': 'best[ext=mp4]',  # 最高品質のmp4を選択
+            'outtmpl': file_path,       # 出力ファイルパス
+            'quiet': False,             # 進捗情報を表示
+            'no_warnings': False,       # 警告を表示
+            'ignoreerrors': False,      # エラーを無視しない
+        }
+        
         # 動画をダウンロード
-        video_stream.download(download_dir, filename=file_name)
+        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([youtube_url])
+        
+        # ファイルが正常に作成されたか確認
+        if not os.path.exists(file_path):
+            raise ValueError("動画のダウンロードに失敗しました")
         
         return file_path
     
