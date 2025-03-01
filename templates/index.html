@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}AI切り抜きくん - YouTube動画の自動ハイライト作成{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">YouTube動画から自動で切り抜き動画を作成</h3>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-4">
+                    <p class="lead">YouTube動画のURLを入力するだけで、AIが重要なシーンを解析して自動で切り抜き動画を作成します。</p>
+                </div>
+                
+                <form action="{{ url_for('process') }}" method="post" id="video-form">
+                    <div class="mb-3">
+                        <label for="youtube_url" class="form-label">YouTube URL</label>
+                        <input type="url" class="form-control" id="youtube_url" name="youtube_url" 
+                               placeholder="https://www.youtube.com/watch?v=..." required>
+                        <div class="form-text">YouTubeの動画URLを入力してください</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg" id="process-btn">
+                            <span class="spinner-border spinner-border-sm d-none" id="loading-spinner" role="status" aria-hidden="true"></span>
+                            切り抜き動画を作成
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header bg-info text-white">
+                <h4 class="card-title mb-0">AI切り抜きくんの特徴</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <div class="feature-item text-center">
+                            <div class="feature-icon mb-2">
+                                <i class="bi bi-robot fs-1"></i>
+                            </div>
+                            <h5>AIによる自動解析</h5>
+                            <p>最新のAI技術で動画の重要なシーンを自動検出</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="feature-item text-center">
+                            <div class="feature-icon mb-2">
+                                <i class="bi bi-scissors fs-1"></i>
+                            </div>
+                            <h5>自動切り抜き</h5>
+                            <p>手動編集不要で魅力的な切り抜き動画を作成</p>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="feature-item text-center">
+                            <div class="feature-icon mb-2">
+                                <i class="bi bi-download fs-1"></i>
+                            </div>
+                            <h5>簡単ダウンロード</h5>
+                            <p>作成した動画はすぐにダウンロード可能</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('video-form').addEventListener('submit', function(e) {
+        // ボタンのテキストを変更し、スピナーを表示
+        const button = document.getElementById('process-btn');
+        const spinner = document.getElementById('loading-spinner');
+        
+        button.innerHTML = '';
+        spinner.classList.remove('d-none');
+        button.appendChild(spinner);
+        button.innerHTML += ' 処理中...'
+        button.disabled = true;
+    });
+</script>
+{% endblock %}

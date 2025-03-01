@@ -169,3 +169,18 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# プロジェクト固有のディレクトリ
+uploads/
+outputs/
+
+# 動画ファイル
+*.mp4
+*.avi
+*.mkv
+*.mov
+*.webm
+
+# OSファイル
+.DS_Store
+Thumbs.db

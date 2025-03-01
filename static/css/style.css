@@ -1,0 +1,73 @@
+/* 全体のスタイル */
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #f8f9fa;
+}
+
+.container {
+    flex: 1;
+}
+
+/* ナビゲーションバー */
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.5rem;
+}
+
+/* カード */
+.card {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: none;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.card-header {
+    padding: 1rem;
+}
+
+/* フィーチャーアイテム */
+.feature-item {
+    padding: 1rem;
+    transition: transform 0.3s ease;
+}
+
+.feature-item:hover {
+    transform: translateY(-5px);
+}
+
+.feature-icon {
+    color: #0d6efd;
+}
+
+/* ボタン */
+.btn {
+    border-radius: 5px;
+    padding: 0.5rem 1.5rem;
+    font-weight: 500;
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+}
+
+/* フッター */
+.footer {
+    margin-top: auto;
+}
+
+/* 動画プレーヤー */
+video {
+    width: 100%;
+    border-radius: 5px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* レスポンシブ調整 */
+@media (max-width: 768px) {
+    .card-header h3 {
+        font-size: 1.5rem;
+    }
+}
