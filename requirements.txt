@@ -1,5 +1,5 @@
 flask==2.3.3
-youtube-dl==2021.12.17
+yt-dlp==2023.12.30
 moviepy==1.0.3
 numpy==1.24.3
 transformers==4.36.0

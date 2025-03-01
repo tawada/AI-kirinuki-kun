@@ -1,6 +1,6 @@
 import os
 import re
-import youtube_dl
+import yt_dlp
 
 def is_valid_youtube_url(url):
     """YouTubeのURLが有効かチェックする"""
@@ -17,17 +17,20 @@ def download_video(youtube_url, download_dir, session_id):
         file_name = f"{session_id}.mp4"
         file_path = os.path.join(download_dir, file_name)
         
-        # youtube-dlのオプション設定
+        # yt-dlpのオプション設定
         ydl_opts = {
-            'format': 'best[ext=mp4]',  # 最高品質のmp4を選択
-            'outtmpl': file_path,       # 出力ファイルパス
-            'quiet': False,             # 進捗情報を表示
-            'no_warnings': False,       # 警告を表示
-            'ignoreerrors': False,      # エラーを無視しない
+            'format': 'best[ext=mp4]/best',  # 最高品質のmp4を選択、なければ最高品質
+            'outtmpl': file_path,           # 出力ファイルパス
+            'quiet': False,                 # 進捗情報を表示
+            'no_warnings': False,           # 警告を表示
+            'ignoreerrors': False,          # エラーを無視しない
+            'noplaylist': True,             # プレイリストをダウンロードしない
+            'geo_bypass': True,             # 地域制限をバイパス
+            'nocheckcertificate': True,     # SSL証明書チェックを無効化
         }
         
         # 動画をダウンロード
-        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([youtube_url])
         
         # ファイルが正常に作成されたか確認
