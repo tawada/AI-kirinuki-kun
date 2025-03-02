@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}処理中 - AI切り抜きくん{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h3 class="card-title mb-0">動画処理中</h3>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-4">
+                    <p class="lead">動画の処理中です。このページを開いたままお待ちください。</p>
+                </div>
+                
+                <div id="processing-info">
+                    <div class="mb-4">
+                        <div class="mb-2">
+                            <strong>処理状況:</strong> <span id="status-text">準備中...</span>
+                        </div>
+                        <div class="progress">
+                            <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" 
+                                 style="width: 0%">0%</div>
+                        </div>
+                    </div>
+                    
+                    <div id="video-info" class="mb-4 d-none">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <img id="thumbnail" src="" class="img-fluid thumbnail-preview rounded" alt="サムネイル">
+                            </div>
+                            <div class="col-md-8">
+                                <h5 id="video-title" class="mb-3">動画タイトル</h5>
+                                <div id="status-message" class="alert alert-info">
+                                    処理中...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="error-container" class="alert alert-danger d-none">
+                    <strong>エラーが発生しました:</strong>
+                    <span id="error-message"></span>
+                </div>
+                
+                <div class="d-grid gap-2 mt-4">
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-2"></i>トップページに戻る
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+<style>
+    .thumbnail-preview {
+        max-width: 100%;
+        height: auto;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 処理状況を定期的に確認
+    const sessionId = "{{ session_id }}";
+    let intervalId;
+    let retryCount = 0;
+    const MAX_RETRIES = 5;
+    
+    // ステータス表示テキストのマッピング
+    const statusText = {
+        'pending': '準備中',
+        'downloading': '動画ダウンロード中',
+        'analyzing': '動画解析中',
+        'processing': '切り抜き動画作成中',
+        'completed': '完了',
+        'failed': 'エラー'
+    };
+    
+    function updateUI(data) {
+        // ステータステキストの更新
+        const statusElement = document.getElementById('status-text');
+        statusElement.textContent = statusText[data.status] || data.status;
+        
+        // プログレスバーの更新
+        const progressBar = document.getElementById('progress-bar');
+        progressBar.style.width = `${data.progress}%`;
+        progressBar.setAttribute('aria-valuenow', data.progress);
+        progressBar.textContent = `${data.progress}%`;
+        
+        // ステータスメッセージの更新
+        const statusMessage = document.getElementById('status-message');
+        statusMessage.textContent = data.message || '';
+        
+        // 動画情報の表示（タイトルとサムネイルが利用可能な場合）
+        if (data.title || data.thumbnail_url) {
+            const videoInfoContainer = document.getElementById('video-info');
+            videoInfoContainer.classList.remove('d-none');
+            
+            if (data.title) {
+                const videoTitle = document.getElementById('video-title');
+                videoTitle.textContent = data.title;
+            }
+            
+            if (data.thumbnail_url) {
+                const thumbnail = document.getElementById('thumbnail');
+                thumbnail.src = data.thumbnail_url;
+            }
+        }
+        
+        // 処理が完了した場合
+        if (data.status === 'completed') {
+            clearInterval(intervalId);
+            // 結果ページにリダイレクト
+            window.location.href = `/result/${sessionId}`;
+        }
+        
+        // エラーが発生した場合
+        if (data.status === 'failed') {
+            clearInterval(intervalId);
+            const errorContainer = document.getElementById('error-container');
+            const errorMessage = document.getElementById('error-message');
+            errorMessage.textContent = data.message || 'Unknown error';
+            errorContainer.classList.remove('d-none');
+        }
+    }
+    
+    function checkStatus() {
+        fetch(`/status/${sessionId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('サーバーからのレスポンスが無効です');
+                }
+                retryCount = 0; // 成功したらリトライカウントをリセット
+                return response.json();
+            })
+            .then(data => {
+                updateUI(data);
+            })
+            .catch(error => {
+                console.error('Error fetching status:', error);
+                retryCount++;
+                
+                if (retryCount >= MAX_RETRIES) {
+                    clearInterval(intervalId);
+                    const errorContainer = document.getElementById('error-container');
+                    const errorMessage = document.getElementById('error-message');
+                    errorMessage.textContent = `サーバーとの通信に失敗しました: ${error.message}`;
+                    errorContainer.classList.remove('d-none');
+                }
+            });
+    }
+    
+    // ページ読み込み時に初回のステータスチェック
+    document.addEventListener('DOMContentLoaded', function() {
+        checkStatus();
+        // その後、3秒ごとにステータスをチェック
+        intervalId = setInterval(checkStatus, 3000);
+    });
+</script>
+{% endblock %}

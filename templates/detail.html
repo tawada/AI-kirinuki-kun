@@ -1,0 +1,206 @@
+{% extends "base.html" %}
+
+{% block title %}処理詳細 - AI切り抜きくん{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">処理詳細</h3>
+            </div>
+            <div class="card-body">
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        {% if video.thumbnail_url %}
+                            <img src="{{ video.thumbnail_url }}" alt="サムネイル" class="img-fluid rounded mb-3">
+                        {% else %}
+                            <div class="bg-light text-center p-5 rounded mb-3">
+                                <i class="bi bi-film fs-1"></i>
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-8">
+                        <h4>{{ video.title or '動画タイトル不明' }}</h4>
+                        <div class="mb-3">
+                            <span class="badge 
+                                {% if video.status == 'completed' %}bg-success
+                                {% elif video.status == 'failed' %}bg-danger
+                                {% else %}bg-info{% endif %}">
+                                {{ {
+                                    'pending': '準備中',
+                                    'downloading': 'ダウンロード中',
+                                    'analyzing': '解析中',
+                                    'processing': '処理中',
+                                    'completed': '完了',
+                                    'failed': 'エラー'
+                                }[video.status.value] }}
+                            </span>
+                            <span class="ms-2 text-muted">ID: {{ video.session_id }}</span>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>作成日時:</strong> {{ video.created_at.strftime('%Y/%m/%d %H:%M:%S') }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>更新日時:</strong> {{ video.updated_at.strftime('%Y/%m/%d %H:%M:%S') }}</p>
+                            </div>
+                        </div>
+                        
+                        <p><strong>YouTube URL:</strong> <a href="{{ video.youtube_url }}" target="_blank">{{ video.youtube_url }}</a></p>
+                        
+                        {% if video.duration %}
+                            <p><strong>元動画の長さ:</strong> {{ '%d分%d秒'|format(video.duration//60, video.duration%60) }}</p>
+                        {% endif %}
+                        
+                        {% if video.error_message %}
+                            <div class="alert alert-danger">
+                                <strong>エラー:</strong> {{ video.error_message }}
+                            </div>
+                        {% endif %}
+                        
+                        {% if video.status == 'completed' %}
+                            <div class="mt-3">
+                                <a href="{{ url_for('result', session_id=video.session_id) }}" class="btn btn-primary">
+                                    <i class="bi bi-play-fill"></i> 再生
+                                </a>
+                                <a href="{{ url_for('download', session_id=video.session_id) }}" class="btn btn-success ms-2">
+                                    <i class="bi bi-download"></i> ダウンロード
+                                </a>
+                            </div>
+                        {% elif video.status != 'failed' %}
+                            <div class="mt-3">
+                                <a href="{{ url_for('processing', session_id=video.session_id) }}" class="btn btn-info">
+                                    <i class="bi bi-arrow-repeat"></i> 処理状況を確認
+                                </a>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- タブメニュー -->
+                <ul class="nav nav-tabs mb-4" id="detailTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs" 
+                                type="button" role="tab" aria-controls="logs" aria-selected="true">
+                            処理ログ
+                        </button>
+                    </li>
+                    {% if highlights %}
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="highlights-tab" data-bs-toggle="tab" data-bs-target="#highlights" 
+                                type="button" role="tab" aria-controls="highlights" aria-selected="false">
+                            ハイライト情報
+                        </button>
+                    </li>
+                    {% endif %}
+                </ul>
+                
+                <!-- タブコンテンツ -->
+                <div class="tab-content" id="detailTabContent">
+                    <div class="tab-pane fade show active" id="logs" role="tabpanel" aria-labelledby="logs-tab">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>ステータス</th>
+                                        <th>メッセージ</th>
+                                        <th>日時</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if logs %}
+                                        {% for log in logs %}
+                                            <tr>
+                                                <td>
+                                                    <span class="badge 
+                                                        {% if log.status == 'completed' %}bg-success
+                                                        {% elif log.status == 'failed' %}bg-danger
+                                                        {% else %}bg-info{% endif %}">
+                                                        {{ {
+                                                            'pending': '準備中',
+                                                            'downloading': 'ダウンロード中',
+                                                            'analyzing': '解析中',
+                                                            'processing': '処理中',
+                                                            'completed': '完了',
+                                                            'failed': 'エラー'
+                                                        }[log.status.value] }}
+                                                    </span>
+                                                </td>
+                                                <td>{{ log.message }}</td>
+                                                <td>{{ log.created_at.strftime('%H:%M:%S') }}</td>
+                                            </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="3" class="text-center py-4 text-muted">
+                                                ログ情報がありません
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    {% if highlights %}
+                    <div class="tab-pane fade" id="highlights" role="tabpanel" aria-labelledby="highlights-tab">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>開始時間</th>
+                                        <th>終了時間</th>
+                                        <th>長さ</th>
+                                        <th>重要度</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for highlight in highlights %}
+                                        <tr>
+                                            <td>{{ loop.index }}</td>
+                                            <td>{{ '%d:%02d'|format(highlight.start_time//60, highlight.start_time%60) }}</td>
+                                            <td>{{ '%d:%02d'|format(highlight.end_time//60, highlight.end_time%60) }}</td>
+                                            <td>{{ '%d秒'|format(highlight.end_time - highlight.start_time) }}</td>
+                                            <td>
+                                                {% if highlight.importance_score %}
+                                                    <div class="progress" style="height: 15px;">
+                                                        <div class="progress-bar" role="progressbar" 
+                                                             style="width: {{ highlight.importance_score * 100 }}%;"
+                                                             aria-valuenow="{{ highlight.importance_score * 100 }}" 
+                                                             aria-valuemin="0" aria-valuemax="100">
+                                                            {{ '%.1f'|format(highlight.importance_score * 100) }}%
+                                                        </div>
+                                                    </div>
+                                                {% else %}
+                                                    <span class="text-muted">不明</span>
+                                                {% endif %}
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="d-flex justify-content-between mt-4">
+                    <a href="{{ url_for('history') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-2"></i>履歴一覧に戻る
+                    </a>
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                        <i class="bi bi-house me-2"></i>トップページに戻る
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+{% endblock %}

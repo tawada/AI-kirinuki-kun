@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}処理履歴 - AI切り抜きくん{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h3 class="card-title mb-0">処理履歴</h3>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>サムネイル</th>
+                                <th>タイトル</th>
+                                <th>ステータス</th>
+                                <th>作成日時</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if videos %}
+                                {% for video in videos %}
+                                    <tr>
+                                        <td class="align-middle" style="width: 120px;">
+                                            {% if video.thumbnail_url %}
+                                                <img src="{{ video.thumbnail_url }}" alt="サムネイル" class="img-thumbnail" style="max-width: 100px;">
+                                            {% else %}
+                                                <div class="bg-light text-center p-2 rounded">
+                                                    <i class="bi bi-film fs-3"></i>
+                                                </div>
+                                            {% endif %}
+                                        </td>
+                                        <td class="align-middle">
+                                            {% if video.title %}
+                                                {{ video.title }}
+                                            {% else %}
+                                                <span class="text-muted">タイトルなし</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="align-middle">
+                                            {% if video.status == 'completed' %}
+                                                <span class="badge bg-success">完了</span>
+                                            {% elif video.status == 'failed' %}
+                                                <span class="badge bg-danger">失敗</span>
+                                            {% elif video.status == 'downloading' %}
+                                                <span class="badge bg-info">ダウンロード中</span>
+                                            {% elif video.status == 'analyzing' %}
+                                                <span class="badge bg-info">解析中</span>
+                                            {% elif video.status == 'processing' %}
+                                                <span class="badge bg-info">処理中</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">{{ video.status }}</span>
+                                            {% endif %}
+                                        </td>
+                                        <td class="align-middle">
+                                            {{ video.created_at.strftime('%Y/%m/%d %H:%M') }}
+                                        </td>
+                                        <td class="align-middle">
+                                            <div class="btn-group" role="group">
+                                                {% if video.status == 'completed' %}
+                                                    <a href="{{ url_for('result', session_id=video.session_id) }}" class="btn btn-primary btn-sm">
+                                                        <i class="bi bi-play-fill"></i> 再生
+                                                    </a>
+                                                {% elif video.status == 'failed' %}
+                                                    <a href="{{ url_for('detail', session_id=video.session_id) }}" class="btn btn-danger btn-sm">
+                                                        <i class="bi bi-exclamation-triangle"></i> エラー詳細
+                                                    </a>
+                                                {% else %}
+                                                    <a href="{{ url_for('processing', session_id=video.session_id) }}" class="btn btn-info btn-sm">
+                                                        <i class="bi bi-arrow-repeat"></i> 処理状況
+                                                    </a>
+                                                {% endif %}
+                                                <a href="{{ url_for('detail', session_id=video.session_id) }}" class="btn btn-outline-secondary btn-sm">
+                                                    <i class="bi bi-info-circle"></i> 詳細
+                                                </a>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-5">
+                                        <div class="text-muted">
+                                            <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+                                            処理履歴がありません
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="d-grid gap-2 mt-4">
+                    <a href="{{ url_for('index') }}" class="btn btn-outline-primary">
+                        <i class="bi bi-arrow-left me-2"></i>トップページに戻る
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+{% endblock %}
