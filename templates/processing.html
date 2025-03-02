@@ -86,10 +86,24 @@
         'failed': 'エラー'
     };
     
+    // 最後に確認したステータス（変更検出用）
+    let lastStatus = 'pending';
+    
     function updateUI(data) {
-        // ステータステキストの更新
+        // ステータステキストの更新（新しいステータスには強調表示を追加）
         const statusElement = document.getElementById('status-text');
-        statusElement.textContent = statusText[data.status] || data.status;
+        const newStatus = statusText[data.status] || data.status;
+        
+        // ステータスが変わった場合、一時的に強調表示
+        if (data.status !== lastStatus) {
+            statusElement.innerHTML = `<span class="badge bg-success">${newStatus}</span>`;
+            // 2秒後に通常表示に戻す
+            setTimeout(() => {
+                statusElement.textContent = newStatus;
+            }, 2000);
+        } else {
+            statusElement.textContent = newStatus;
+        }
         
         // プログレスバーの更新
         const progressBar = document.getElementById('progress-bar');
@@ -144,7 +158,14 @@
                 return response.json();
             })
             .then(data => {
+                console.log('ステータス更新:', data);  // デバッグ用
                 updateUI(data);
+                
+                // ステータスが変更されたらログをコンソールに出力
+                if (data.status !== lastStatus) {
+                    console.log(`ステータスが変更されました: ${lastStatus} → ${data.status}`);
+                    lastStatus = data.status;
+                }
             })
             .catch(error => {
                 console.error('Error fetching status:', error);
