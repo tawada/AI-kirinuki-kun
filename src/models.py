@@ -30,6 +30,7 @@ class Video(db.Model):
     status = Column(SQLAEnum(ProcessStatus), default=ProcessStatus.PENDING)
     error_message = Column(Text, nullable=True)
     progress = Column(Integer, default=0)  # 処理進捗を0-100で表す
+    current_task_id = Column(String(255), nullable=True)  # 現在実行中のタスクID
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
@@ -48,6 +49,7 @@ class Video(db.Model):
             'thumbnail_url': self.thumbnail_url,
             'status': self.status.value,
             'progress': self.progress,
+            'current_task_id': self.current_task_id,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
@@ -83,6 +85,7 @@ class ProcessLog(db.Model):
     status = Column(SQLAEnum(ProcessStatus), nullable=False)
     message = Column(Text, nullable=True)
     details = Column(Text, nullable=True)  # JSON形式で詳細情報を保存
+    task_id = Column(String(255), nullable=True)  # 関連するタスクID
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # リレーションシップ
@@ -103,5 +106,6 @@ class ProcessLog(db.Model):
             'status': self.status.value,
             'message': self.message,
             'details': self.get_details(),
+            'task_id': self.task_id,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
