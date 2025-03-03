@@ -1,5 +1,8 @@
 import os
+import time
+from datetime import datetime, timedelta
 from celery import Celery
+from celery.signals import task_failure
 from moviepy.editor import VideoFileClip
 import yt_dlp
 from src.models import db, Video, Highlight, ProcessLog, ProcessStatus
@@ -31,12 +34,27 @@ def configure_celery(app):
         # データベース関連の設定
         task_ignore_result=False, # タスク結果を保存
         worker_max_tasks_per_child=200,  # ワーカーが再起動するまでに処理するタスク数
+        # 自動リトライの設定
+        task_publish_retry=True,  # 非同期処理のリトライを有効化
+        task_publish_retry_policy={
+            'max_retries': 5,     # 最大リトライ回数
+            'interval_start': 0,  # 初回リトライまでの待機時間（秒）
+            'interval_step': 1,   # リトライごとの待機時間増分（秒）
+            'interval_max': 60,   # 最大待機時間（秒）
+        },
     )
 
     class ContextTask(celery.Task):
         def __call__(self, *args, **kwargs):
             with app.app_context():
                 return self.run(*args, **kwargs)
+        
+        # 自動リトライ設定
+        autoretry_for = (Exception,)  # すべての例外でリトライを行う
+        retry_kwargs = {
+            'max_retries': 3,  # 最大リトライ回数
+            'countdown': 60    # リトライ間隔（秒）
+        }
                 
         def on_failure(self, exc, task_id, args, kwargs, einfo):
             """タスク失敗時のハンドラ"""
@@ -46,16 +64,38 @@ def configure_celery(app):
                     from src.models import db, Video, ProcessLog, ProcessStatus
                     video = db.session.get(Video, video_id)
                     if video:
-                        video.status = ProcessStatus.FAILED
-                        video.error_message = str(exc)
+                        # リトライが失敗した回数を計算
+                        retry_count = self.request.retries if hasattr(self.request, 'retries') else 0
                         
-                        error_log = ProcessLog(
-                            video_id=video_id,
-                            status=ProcessStatus.FAILED,
-                            message=f"タスク実行中にエラーが発生しました: {str(exc)}"
-                        )
-                        db.session.add(error_log)
-                        db.session.commit()
+                        # 最大リトライに達していない場合、エラーを記録して状態を更新
+                        if retry_count < self.retry_kwargs['max_retries']:
+                            status_message = f"タスクが失敗しました。自動リトライを実行します ({retry_count+1}/{self.retry_kwargs['max_retries']})"
+                            
+                            # エラーログを記録
+                            error_log = ProcessLog(
+                                video_id=video_id,
+                                status=ProcessStatus.FAILED,
+                                message=f"{status_message}: {str(exc)}",
+                                task_id=task_id
+                            )
+                            db.session.add(error_log)
+                            
+                            # ビデオのステータスはFAILEDに設定しない（リトライするため）
+                            video.error_message = f"エラーが発生しましたが、自動リトライします: {str(exc)}"
+                            db.session.commit()
+                        else:
+                            # 最大リトライに達した場合、最終的にFAILEDに設定
+                            video.status = ProcessStatus.FAILED
+                            video.error_message = f"最大リトライ回数に達しました: {str(exc)}"
+                            
+                            error_log = ProcessLog(
+                                video_id=video_id,
+                                status=ProcessStatus.FAILED,
+                                message=f"最大リトライ回数({self.retry_kwargs['max_retries']})に達しました: {str(exc)}",
+                                task_id=task_id
+                            )
+                            db.session.add(error_log)
+                            db.session.commit()
                 except Exception as e:
                     print(f"エラーハンドリング中に例外が発生しました: {e}")
                     
@@ -552,3 +592,118 @@ def extract_metadata(video, youtube_url):
     except Exception as e:
         # メタデータ抽出のエラーは致命的ではないので、ログに記録するだけ
         print(f"メタデータの抽出中にエラーが発生しました: {str(e)}")
+
+
+# タスク失敗検出とリカバリ用の定期タスク
+@celery.task
+def monitor_failed_tasks():
+    """失敗したタスクを検出し、必要に応じて再起動するタスク"""
+    try:
+        from src.models import db, Video, ProcessLog, ProcessStatus
+        
+        # FAILEDステータスのビデオを取得（最終更新から一定時間経過したもののみ）
+        recovery_threshold = datetime.utcnow() - timedelta(minutes=5)  # 5分前までに失敗したタスク
+        
+        # 失敗したビデオとステータスが中途半端なビデオを検索
+        failed_videos = db.session.query(Video).filter(
+            (Video.status == ProcessStatus.FAILED) &
+            (Video.updated_at <= recovery_threshold) &
+            (Video.progress < 100)  # 完了していないものを対象に
+        ).all()
+        
+        # 中断したビデオ（タイムアウトや不正終了など）
+        stalled_videos = db.session.query(Video).filter(
+            Video.status.in_([
+                ProcessStatus.DOWNLOADING,
+                ProcessStatus.ANALYZING,
+                ProcessStatus.PROCESSING
+            ]) &
+            (Video.updated_at <= recovery_threshold) &
+            (Video.progress < 100)
+        ).all()
+        
+        recovery_count = 0
+        
+        # 失敗したタスクのリカバリ
+        for video in failed_videos:
+            # 最新のプロセスログを取得して失敗したステップを特定
+            last_log = db.session.query(ProcessLog).filter(
+                ProcessLog.video_id == video.id
+            ).order_by(ProcessLog.created_at.desc()).first()
+            
+            if not last_log:
+                continue
+            
+            # ステータスに応じて適切なタスクを開始
+            restart_task(video, last_log)
+            recovery_count += 1
+        
+        # 中断したタスクのリカバリ
+        for video in stalled_videos:
+            # 最新のプロセスログを取得
+            last_log = db.session.query(ProcessLog).filter(
+                ProcessLog.video_id == video.id
+            ).order_by(ProcessLog.created_at.desc()).first()
+            
+            if not last_log:
+                continue
+            
+            # ステータスに応じて適切なタスクを開始
+            restart_task(video, last_log)
+            recovery_count += 1
+        
+        return {
+            'status': 'success',
+            'recovered_tasks': recovery_count,
+            'failed_videos': len(failed_videos),
+            'stalled_videos': len(stalled_videos)
+        }
+        
+    except Exception as e:
+        print(f"タスクモニタリング中にエラーが発生しました: {str(e)}")
+        return {'status': 'error', 'message': str(e)}
+
+
+def restart_task(video, last_log):
+    """失敗または中断したタスクを再開する"""
+    try:
+        # リカバリーログを追加
+        recovery_log = ProcessLog(
+            video_id=video.id,
+            status=ProcessStatus.PENDING,
+            message=f"タスクの自動リカバリーを開始します。前回のステータス: {video.status.value}"
+        )
+        db.session.add(recovery_log)
+        
+        # ビデオのステータスをリセット
+        video.status = ProcessStatus.PENDING
+        video.error_message = None
+        
+        # タスクの状態に応じて、適切なポイントからタスクを再開
+        if not video.original_path:
+            # ダウンロードから失敗した場合
+            video.status = ProcessStatus.DOWNLOADING
+            new_task = download_task.delay(video.id)
+            video.current_task_id = new_task.id
+        elif video.status == ProcessStatus.DOWNLOADING or video.status == ProcessStatus.ANALYZING:
+            # 解析中に失敗した場合
+            video.status = ProcessStatus.ANALYZING
+            new_task = analyze_task.delay(video.id)
+            video.current_task_id = new_task.id
+        elif video.status == ProcessStatus.PROCESSING:
+            # ハイライト作成中に失敗した場合
+            video.status = ProcessStatus.PROCESSING
+            new_task = create_highlights_task.delay(video.id)
+            video.current_task_id = new_task.id
+        else:
+            # その他の状態では最初からやり直し
+            video.status = ProcessStatus.PENDING
+            new_task = process_video_task.delay(video.id)
+            video.current_task_id = new_task.id
+        
+        db.session.commit()
+        
+        return True
+    except Exception as e:
+        print(f"タスク再開中にエラーが発生しました (video_id={video.id}): {str(e)}")
+        return False
