@@ -7,7 +7,7 @@ from src.tasks import monitor_failed_tasks
 celery.conf.beat_schedule = {
     'monitor-failed-tasks': {
         'task': 'src.tasks.monitor_failed_tasks',
-        'schedule': crontab(minute='*/5'),  # 5分ごとに実行
+        'schedule': crontab(minute='*/30'),  # 30分ごとに実行
     },
 }
 

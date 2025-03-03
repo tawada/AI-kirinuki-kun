@@ -507,12 +507,14 @@ def create_highlights_task(self, video_id):
         # ステータス更新
         video.status = ProcessStatus.PROCESSING
         video.progress = 80
+        video.current_task_id = self.request.id  # 現在のタスクIDを保存
         
         # ログ記録
         log = ProcessLog(
             video_id=video_id,
             status=ProcessStatus.PROCESSING,
-            message="切り抜き動画の作成を開始しました"
+            message="切り抜き動画の作成を開始しました",
+            task_id=self.request.id
         )
         db.session.add(log)
         db.session.commit()
@@ -535,7 +537,8 @@ def create_highlights_task(self, video_id):
         log = ProcessLog(
             video_id=video_id,
             status=ProcessStatus.COMPLETED,
-            message="切り抜き動画の作成が完了しました"
+            message="切り抜き動画の作成が完了しました",
+            task_id=self.request.id
         )
         db.session.add(log)
         db.session.commit()
@@ -602,7 +605,8 @@ def monitor_failed_tasks():
         from src.models import db, Video, ProcessLog, ProcessStatus
         
         # FAILEDステータスのビデオを取得（最終更新から一定時間経過したもののみ）
-        recovery_threshold = datetime.utcnow() - timedelta(minutes=5)  # 5分前までに失敗したタスク
+        # 監視間隔を長めに設定し、頻繁なリカバリーを避ける
+        recovery_threshold = datetime.utcnow() - timedelta(minutes=15)  # 15分前までに失敗したタスク
         
         # 失敗したビデオとステータスが中途半端なビデオを検索
         failed_videos = db.session.query(Video).filter(
@@ -612,6 +616,7 @@ def monitor_failed_tasks():
         ).all()
         
         # 中断したビデオ（タイムアウトや不正終了など）
+        # 直近5分間に更新されていないものを「停止している」と判断
         stalled_videos = db.session.query(Video).filter(
             Video.status.in_([
                 ProcessStatus.DOWNLOADING,
@@ -619,7 +624,8 @@ def monitor_failed_tasks():
                 ProcessStatus.PROCESSING
             ]) &
             (Video.updated_at <= recovery_threshold) &
-            (Video.progress < 100)
+            (Video.progress < 100) &
+            (Video.status != ProcessStatus.COMPLETED)  # 完了したものは除外
         ).all()
         
         recovery_count = 0
@@ -667,11 +673,42 @@ def monitor_failed_tasks():
 def restart_task(video, last_log):
     """失敗または中断したタスクを再開する"""
     try:
+        # 既に完了している場合は何もしない
+        if video.status == ProcessStatus.COMPLETED or video.progress >= 100:
+            return False
+            
+        # 進行中のタスクが存在し、有効な場合は何もしない
+        if video.current_task_id:
+            from celery.result import AsyncResult
+            result = AsyncResult(video.current_task_id)
+            if result.state in ['PENDING', 'STARTED', 'RETRY']:
+                # タスクが進行中の場合、リカバリーは不要
+                return False
+        
+        # リカバリー試行回数を確認（同じビデオに対する過去のリカバリーログ）
+        # 過度なリカバリーを防止
+        recovery_logs = db.session.query(ProcessLog).filter(
+            (ProcessLog.video_id == video.id) &
+            (ProcessLog.message.like('%自動リカバリー%'))
+        ).all()
+        
+        # 最大リカバリー回数 (5回) に達した場合は処理しない
+        if len(recovery_logs) >= 5:
+            # 最終ログを追加
+            final_log = ProcessLog(
+                video_id=video.id,
+                status=ProcessStatus.FAILED,
+                message=f"最大リカバリー試行回数に達したため、自動リカバリーを停止します。"
+            )
+            db.session.add(final_log)
+            db.session.commit()
+            return False
+        
         # リカバリーログを追加
         recovery_log = ProcessLog(
             video_id=video.id,
             status=ProcessStatus.PENDING,
-            message=f"タスクの自動リカバリーを開始します。前回のステータス: {video.status.value}"
+            message=f"タスクの自動リカバリーを開始します。前回のステータス: {video.status.value}, リカバリー試行: {len(recovery_logs)+1}/5"
         )
         db.session.add(recovery_log)
         
