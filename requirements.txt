@@ -11,3 +11,7 @@ sqlalchemy==2.0.23
 celery==5.3.4
 redis==5.0.1
 flower==2.0.1
+boto3==1.29.7
+botocore==1.32.7
+gunicorn==21.2.0
+psycopg2-binary==2.9.9

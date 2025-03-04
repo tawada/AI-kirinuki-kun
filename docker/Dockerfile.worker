@@ -1,0 +1,28 @@
+FROM python:3.9-slim
+
+WORKDIR /app
+
+# 依存関係のインストール
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Pythonの依存関係をインストール
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# アプリケーションのコードをコピー
+COPY . .
+
+# 必要なディレクトリの作成
+RUN mkdir -p /app/uploads /app/outputs /tmp/ai-kirinuki
+
+# 環境変数の設定
+ENV PYTHONPATH=/app
+ENV CELERY_BROKER_URL=redis://redis:6379/0
+ENV CELERY_RESULT_BACKEND=redis://redis:6379/0
+ENV C_FORCE_ROOT=true
+
+# Celeryワーカーを起動
+CMD celery -A celery_worker.celery worker --loglevel=info --concurrency=2

@@ -2,10 +2,12 @@ import os
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory, abort
 from werkzeug.utils import secure_filename
 import uuid
+import boto3
 from src.youtube_downloader import is_valid_youtube_url
 from src.models import db, Video, Highlight, ProcessLog, ProcessStatus
 from src.tasks import process_video_task, configure_celery
 from src.db_manager import init_db
+from src.storage_utils import StorageManager
 from dotenv import load_dotenv
 
 # 環境変数のロード
@@ -21,14 +23,28 @@ def create_app():
     app.config['CELERY_BROKER_URL'] = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
     app.config['CELERY_RESULT_BACKEND'] = os.getenv('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
     
+    # ストレージ設定 (ローカルまたはS3)
+    app.config['USE_S3'] = os.getenv('USE_S3', 'False').lower() in ('true', '1', 't')
+    app.config['S3_UPLOAD_BUCKET'] = os.getenv('S3_UPLOAD_BUCKET')
+    app.config['S3_OUTPUT_BUCKET'] = os.getenv('S3_OUTPUT_BUCKET')
+    app.config['AWS_REGION'] = os.getenv('AWS_REGION', 'ap-northeast-1')
+    
     # アップロードされた動画と生成された動画の保存先
     app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'uploads')
     app.config['OUTPUT_FOLDER'] = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'outputs')
     
-    # 必要なディレクトリの作成
+    # 必要なディレクトリの作成 (ローカルモードの場合)
     for folder in [app.config['UPLOAD_FOLDER'], app.config['OUTPUT_FOLDER']]:
         if not os.path.exists(folder):
             os.makedirs(folder)
+    
+    # ストレージマネージャーの初期化
+    app.storage_manager = StorageManager(
+        use_s3=app.config['USE_S3'],
+        upload_bucket=app.config['S3_UPLOAD_BUCKET'],
+        output_bucket=app.config['S3_OUTPUT_BUCKET'],
+        region=app.config['AWS_REGION']
+    )
     
     # データベースの初期化
     init_db(app)
@@ -169,7 +185,27 @@ def download(session_id):
         abort(404)
     
     output_filename = f"{session_id}.mp4"
-    return send_from_directory(directory=app.config['OUTPUT_FOLDER'], path=output_filename, as_attachment=True)
+    
+    if app.config['USE_S3']:
+        # S3の場合は署名付きURLを生成して直接ダウンロード
+        try:
+            s3_client = boto3.client('s3', region_name=app.config['AWS_REGION'])
+            s3_url = s3_client.generate_presigned_url(
+                'get_object',
+                Params={
+                    'Bucket': app.config['S3_OUTPUT_BUCKET'],
+                    'Key': output_filename,
+                    'ResponseContentDisposition': f'attachment; filename={output_filename}'
+                },
+                ExpiresIn=300  # 5分間有効
+            )
+            return redirect(s3_url)
+        except Exception as e:
+            app.logger.error(f"S3 URL生成エラー: {str(e)}")
+            abort(500)
+    else:
+        # ローカルの場合は直接ファイルを送信
+        return send_from_directory(directory=app.config['OUTPUT_FOLDER'], path=output_filename, as_attachment=True)
 
 @app.route('/video/<session_id>')
 def video(session_id):
@@ -180,7 +216,33 @@ def video(session_id):
         abort(404)
     
     output_filename = f"{session_id}.mp4"
-    return send_from_directory(directory=app.config['OUTPUT_FOLDER'], path=output_filename)
+    
+    if app.config['USE_S3']:
+        # S3の場合はCloudFrontのURLを返す（設定されている場合）
+        # または一時的な署名付きURLを生成
+        cloudfront_domain = os.getenv('CLOUDFRONT_DOMAIN')
+        if cloudfront_domain:
+            # CloudFrontが設定されている場合
+            return redirect(f"https://{cloudfront_domain}/{output_filename}")
+        else:
+            # 署名付きURLを生成
+            try:
+                s3_client = boto3.client('s3', region_name=app.config['AWS_REGION'])
+                s3_url = s3_client.generate_presigned_url(
+                    'get_object',
+                    Params={
+                        'Bucket': app.config['S3_OUTPUT_BUCKET'],
+                        'Key': output_filename,
+                    },
+                    ExpiresIn=3600  # 1時間有効
+                )
+                return redirect(s3_url)
+            except Exception as e:
+                app.logger.error(f"S3 URL生成エラー: {str(e)}")
+                abort(500)
+    else:
+        # ローカルの場合は直接ファイルを送信
+        return send_from_directory(directory=app.config['OUTPUT_FOLDER'], path=output_filename)
 
 @app.route('/history')
 def history():

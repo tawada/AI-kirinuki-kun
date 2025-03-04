@@ -1,0 +1,62 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.app
+    container_name: ai-kirinuki-app
+    volumes:
+      - ./uploads:/app/uploads
+      - ./outputs:/app/outputs
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_APP=run.py
+      - FLASK_ENV=development
+      - SECRET_KEY=dev_key
+      - DATABASE_URL=sqlite:///instance/kirinuki.db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: ai-kirinuki-worker
+    volumes:
+      - ./uploads:/app/uploads
+      - ./outputs:/app/outputs
+    environment:
+      - FLASK_APP=run.py
+      - FLASK_ENV=development
+      - DATABASE_URL=sqlite:///instance/kirinuki.db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:latest
+    container_name: ai-kirinuki-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  flower:
+    image: mher/flower:0.9.7
+    container_name: ai-kirinuki-flower
+    environment:
+      - FLOWER_PORT=5555
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - FLOWER_BASIC_AUTH=admin:password
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - worker
+    restart: unless-stopped
