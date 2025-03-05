@@ -77,8 +77,32 @@ YouTubeの動画をAIで自動解析し、重要なシーンを切り抜いた�
 #### 前提条件
 
 - Python 3.8以上
-- FFmpeg（動画処理に必要）
+- FFmpeg（動画処理と音声認識に必要）
 - Redis（Celeryのメッセージブローカーとして使用）
+
+##### FFmpegのインストール方法
+
+###### Ubuntu / Debian
+```bash
+sudo apt-get update
+sudo apt-get install ffmpeg
+```
+
+###### CentOS / RHEL
+```bash
+sudo yum install ffmpeg
+```
+
+###### macOS (Homebrew)
+```bash
+brew install ffmpeg
+```
+
+###### Windows
+[FFmpegの公式サイト](https://ffmpeg.org/download.html)からダウンロードするか、Chocolateyを使用:
+```bash
+choco install ffmpeg
+```
 
 #### インストール
 

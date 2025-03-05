@@ -18,6 +18,15 @@ def extract_audio(video_path: str) -> str:
     Returns:
         抽出した音声ファイルの一時パス
     """
+    # FFmpegの存在チェック
+    try:
+        import subprocess
+        result = subprocess.run(['ffmpeg', '-version'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if result.returncode != 0:
+            raise Exception("FFmpegの実行時にエラーが発生しました。FFmpegが正しくインストールされているか確認してください。")
+    except FileNotFoundError:
+        raise Exception("FFmpegがインストールされていないか、パスが通っていません。インストール方法はREADMEを参照してください。")
+    
     # 一時ファイルを作成
     temp_audio = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     temp_audio_path = temp_audio.name
@@ -26,6 +35,10 @@ def extract_audio(video_path: str) -> str:
     try:
         # 動画を読み込み
         video = VideoFileClip(video_path)
+        
+        # 音声トラックが存在することを確認
+        if video.audio is None:
+            raise Exception("動画に音声トラックが含まれていません。")
         
         # 音声を抽出して保存
         video.audio.write_audiofile(temp_audio_path, 
