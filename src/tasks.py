@@ -5,10 +5,11 @@ from celery import Celery
 from celery.signals import task_failure
 from moviepy.editor import VideoFileClip
 import yt_dlp
-from src.models import db, Video, Highlight, ProcessLog, ProcessStatus
+from src.models import db, Video, Highlight, ProcessLog, ProcessStatus, TranscriptSegment
 from src.youtube_downloader import download_video
 from src.video_processor import get_video_highlights, process_video
 from src.task_utils import update_log_with_task_id
+from src.transcription import transcribe_video
 
 # Celeryの設定
 celery = Celery('ai_kirinuki_tasks')
@@ -394,8 +395,8 @@ def download_task(self, video_id):
         db.session.add(log)
         db.session.commit()
         
-        # 次のタスク（解析タスク）を自動的に実行
-        task = analyze_task.delay(video_id)
+        # 次のタスク（文字起こしタスク）を自動的に実行
+        task = transcribe_task.delay(video_id)
         
         # 次のタスクIDをデータベースに記録
         video.current_task_id = task.id
@@ -423,6 +424,94 @@ def download_task(self, video_id):
         return {'status': 'error', 'message': str(e), 'video_id': video_id, 'task_id': self.request.id}
 
 @celery.task(bind=True)
+def transcribe_task(self, video_id):
+    """動画の文字起こしタスク（非同期版）"""
+    try:
+        # ビデオレコードの取得
+        video = db.session.get(Video, video_id)
+        if not video:
+            return {'status': 'error', 'message': 'ビデオが見つかりません'}
+        
+        # ステータス更新
+        video.status = ProcessStatus.TRANSCRIBING
+        video.progress = 35
+        video.current_task_id = self.request.id  # 現在のタスクIDを保存
+        
+        # ログ記録
+        log = ProcessLog(
+            video_id=video_id,
+            status=ProcessStatus.TRANSCRIBING,
+            message="動画の文字起こしを開始しました",
+            task_id=self.request.id
+        )
+        db.session.add(log)
+        db.session.commit()
+        
+        # 文字起こしの実行
+        full_text, segments = transcribe_video(video.original_path)
+        
+        # 文字起こし結果の保存
+        video.transcript = full_text
+        
+        # セグメント情報の保存
+        for segment in segments:
+            transcript_segment = TranscriptSegment(
+                video_id=video_id,
+                start_time=segment["start_time"],
+                end_time=segment["end_time"],
+                text=segment["text"]
+            )
+            db.session.add(transcript_segment)
+        
+        # ビデオレコードの更新
+        video.progress = 40
+        
+        # ログ記録
+        log = ProcessLog(
+            video_id=video_id,
+            status=ProcessStatus.TRANSCRIBING,
+            message="動画の文字起こしが完了しました",
+            task_id=self.request.id
+        )
+        db.session.add(log)
+        db.session.commit()
+        
+        # 次のタスク（解析タスク）を実行
+        task = analyze_task.delay(video_id)
+        
+        # 次のタスクIDをデータベースに記録
+        video.current_task_id = task.id
+        db.session.commit()
+        
+        return {
+            'status': 'success', 
+            'video_id': video_id, 
+            'transcript_length': len(full_text), 
+            'segments_count': len(segments),
+            'task_id': self.request.id
+        }
+    
+    except Exception as e:
+        # エラー発生時の処理
+        video = db.session.get(Video, video_id)
+        if video:
+            video.status = ProcessStatus.FAILED
+            video.error_message = f"文字起こし中にエラーが発生しました: {str(e)}"
+            
+            # エラーログを記録
+            error_log = ProcessLog(
+                video_id=video_id,
+                status=ProcessStatus.FAILED,
+                message=f"文字起こし中にエラーが発生しました: {str(e)}",
+                task_id=self.request.id
+            )
+            db.session.add(error_log)
+            db.session.commit()
+        
+        # エラーを記録するだけで再スローしない（タスクチェーンを中断）
+        return {'status': 'error', 'message': str(e), 'video_id': video_id, 'task_id': self.request.id}
+
+@celery.task(bind=True)
 def analyze_task(self, video_id):
     """動画の解析タスク（非同期版）"""
     try:
@@ -433,7 +522,7 @@ def analyze_task(self, video_id):
         
         # ステータス更新
         video.status = ProcessStatus.ANALYZING
-        video.progress = 40
+        video.progress = 50
         video.current_task_id = self.request.id  # 現在のタスクIDを保存
         
         # ログ記録 - タスクIDを含める
@@ -620,6 +709,7 @@ def monitor_failed_tasks():
         stalled_videos = db.session.query(Video).filter(
             Video.status.in_([
                 ProcessStatus.DOWNLOADING,
+                ProcessStatus.TRANSCRIBING,
                 ProcessStatus.ANALYZING,
                 ProcessStatus.PROCESSING
             ]) &
@@ -722,7 +812,17 @@ def restart_task(video, last_log):
             video.status = ProcessStatus.DOWNLOADING
             new_task = download_task.delay(video.id)
             video.current_task_id = new_task.id
-        elif video.status == ProcessStatus.DOWNLOADING or video.status == ProcessStatus.ANALYZING:
+        elif video.status == ProcessStatus.DOWNLOADING:
+            # ダウンロード中に失敗した場合
+            video.status = ProcessStatus.DOWNLOADING
+            new_task = download_task.delay(video.id)
+            video.current_task_id = new_task.id
+        elif video.status == ProcessStatus.TRANSCRIBING:
+            # 文字起こし中に失敗した場合
+            video.status = ProcessStatus.TRANSCRIBING
+            new_task = transcribe_task.delay(video.id)
+            video.current_task_id = new_task.id
+        elif video.status == ProcessStatus.ANALYZING:
             # 解析中に失敗した場合
             video.status = ProcessStatus.ANALYZING
             new_task = analyze_task.delay(video.id)
