@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="800" height="500" viewBox="0 0 800 500">
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#f0ad4e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ec971f;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#5bc0de;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#31b0d5;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="grad3" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#5cb85c;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#449d44;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="grad4" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#d9534f;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#c9302c;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="grad5" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#428bca;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3071a9;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="grad6" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#777777;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#555555;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Main Title -->
+  <text x="400" y="40" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#333">ローカル環境アーキテクチャ</text>
+
+  <!-- Background -->
+  <rect x="50" y="70" width="700" height="380" rx="10" ry="10" fill="#f8f8f8" stroke="#ddd" stroke-width="2"/>
+
+  <!-- Flask Component -->
+  <rect x="100" y="130" width="160" height="80" rx="5" ry="5" fill="url(#grad1)" stroke="#e09d3e" stroke-width="2"/>
+  <text x="180" y="175" font-family="Arial, sans-serif" font-size="18" text-anchor="middle" fill="white">Flask</text>
+  <text x="180" y="195" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="white">Webアプリケーション</text>
+
+  <!-- Celery Component -->
+  <rect x="100" y="230" width="160" height="80" rx="5" ry="5" fill="url(#grad2)" stroke="#28a4c9" stroke-width="2"/>
+  <text x="180" y="275" font-family="Arial, sans-serif" font-size="18" text-anchor="middle" fill="white">Celery</text>
+  <text x="180" y="295" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="white">非同期タスク処理</text>
+
+  <!-- Redis Component -->
+  <rect x="320" y="130" width="160" height="80" rx="5" ry="5" fill="url(#grad3)" stroke="#3e8f3e" stroke-width="2"/>
+  <text x="400" y="175" font-family="Arial, sans-serif" font-size="18" text-anchor="middle" fill="white">Redis</text>
+  <text x="400" y="195" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="white">メッセージブローカー</text>
+
+  <!-- SQLite Component -->
+  <rect x="320" y="230" width="160" height="80" rx="5" ry="5" fill="url(#grad4)" stroke="#b92c28" stroke-width="2"/>
+  <text x="400" y="275" font-family="Arial, sans-serif" font-size="18" text-anchor="middle" fill="white">SQLite</text>
+  <text x="400" y="295" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="white">データベース</text>
+
+  <!-- MoviePy/FFmpeg Component -->
+  <rect x="540" y="130" width="160" height="80" rx="5" ry="5" fill="url(#grad5)" stroke="#285e8e" stroke-width="2"/>
+  <text x="620" y="175" font-family="Arial, sans-serif" font-size="18" text-anchor="middle" fill="white">MoviePy/FFmpeg</text>
+  <text x="620" y="195" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="white">動画処理</text>
+
+  <!-- Transformers/PyTorch Component -->
+  <rect x="540" y="230" width="160" height="80" rx="5" ry="5" fill="url(#grad6)" stroke="#444444" stroke-width="2"/>
+  <text x="620" y="275" font-family="Arial, sans-serif" font-size="18" text-anchor="middle" fill="white">Transformers/PyTorch</text>
+  <text x="620" y="295" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="white">AI解析</text>
+
+  <!-- User Interface -->
+  <rect x="320" y="360" width="160" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cccccc" stroke-width="2"/>
+  <text x="400" y="395" font-family="Arial, sans-serif" font-size="16" text-anchor="middle" fill="#333">ユーザーインターフェース</text>
+
+  <!-- Connection Lines -->
+  <!-- Flask to Redis -->
+  <line x1="260" y1="170" x2="320" y2="170" stroke="#999" stroke-width="2" stroke-dasharray="5,3"/>
+  <!-- Flask to SQLite -->
+  <line x1="215" y1="210" x2="350" y2="230" stroke="#999" stroke-width="2" stroke-dasharray="5,3"/>
+  <!-- Celery to Redis -->
+  <line x1="215" y1="230" x2="350" y2="190" stroke="#999" stroke-width="2" stroke-dasharray="5,3"/>
+  <!-- Celery to SQLite -->
+  <line x1="260" y1="270" x2="320" y2="270" stroke="#999" stroke-width="2" stroke-dasharray="5,3"/>
+  <!-- Celery to MoviePy -->
+  <line x1="260" y1="260" x2="540" y2="170" stroke="#999" stroke-width="2" stroke-dasharray="5,3"/>
+  <!-- Celery to Transformers -->
+  <line x1="260" y1="270" x2="540" y2="270" stroke="#999" stroke-width="2" stroke-dasharray="5,3"/>
+  <!-- Flask to UI -->
+  <line x1="180" y1="210" x2="350" y2="360" stroke="#999" stroke-width="2" stroke-dasharray="5,3"/>
+  <!-- SQLite to UI -->
+  <line x1="400" y1="310" x2="400" y2="360" stroke="#999" stroke-width="2" stroke-dasharray="5,3"/>
+
+  <!-- Legend -->
+  <rect x="600" y="360" width="100" height="60" rx="5" ry="5" fill="#ffffff" stroke="#cccccc" stroke-width="2"/>
+  <text x="650" y="380" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#333">データフロー</text>
+  <line x1="620" y1="395" x2="680" y2="395" stroke="#999" stroke-width="2" stroke-dasharray="5,3"/>
+</svg>

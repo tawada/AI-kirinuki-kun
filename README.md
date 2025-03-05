@@ -14,7 +14,7 @@ YouTubeの動画をAIで自動解析し、重要なシーンを切り抜いた�
 
 ### ローカル環境
 
-![ローカルアーキテクチャ](docs/local_architecture.png)
+![ローカルアーキテクチャ](docs/local_architecture.svg)
 
 - **Flask**: Webアプリケーションフレームワーク
 - **Celery**: 非同期タスク処理
@@ -25,7 +25,7 @@ YouTubeの動画をAIで自動解析し、重要なシーンを切り抜いた�
 
 ### AWS環境 
 
-![AWSアーキテクチャ](docs/aws_architecture.png)
+![AWSアーキテクチャ](docs/aws_architecture.svg)
 
 #### 主要コンポーネント
 
