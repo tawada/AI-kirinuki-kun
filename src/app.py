@@ -265,7 +265,13 @@ def detail(session_id):
     # ハイライト情報を取得
     highlights = Highlight.query.filter_by(video_id=video.id).order_by(Highlight.start_time).all()
     
-    return render_template('detail.html', video=video, logs=logs, highlights=highlights)
+    # 文字起こしセグメントを取得
+    transcript_segments = []
+    if video.transcript:  # 文字起こしが完了している場合
+        from src.models import TranscriptSegment
+        transcript_segments = TranscriptSegment.query.filter_by(video_id=video.id).order_by(TranscriptSegment.start_time).all()
+    
+    return render_template('detail.html', video=video, logs=logs, highlights=highlights, transcript_segments=transcript_segments)
 
 if __name__ == '__main__':
     app.run(debug=True)
